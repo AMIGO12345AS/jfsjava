@@ -60,7 +60,7 @@ def get_customers():
         response.raise_for_status()
         data = response.json()
         contacts = data.get('contacts', [])
-        # Return all contacts (all are typically customers in Zoho Books)
+        # Return all contacts (in Zoho Books, contacts are typically customers)
         return jsonify({
             'customers': contacts,
             'count': len(contacts)
