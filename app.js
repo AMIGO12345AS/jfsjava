@@ -1,7 +1,7 @@
 const express = require('express');
 const path = require('path');
 const axios = require('axios');
-const { getHeaders, getApiDomain } = require('./zoho_token_manager_serverless');
+const { getHeaders, getApiDomain } = require('./zoho_token_manager');
 
 const app = express();
 
