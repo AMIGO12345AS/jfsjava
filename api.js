@@ -1,181 +1,131 @@
-const http = require('http');
-const url = require('url');
-const { getHeaders, getApiDomain } = require('./zoho_token_manager_serverless');
+const express = require('express');
+const path = require('path');
+const axios = require('axios');
+const { getHeaders, getApiDomain } = require('./zoho_token_manager_vercel');
 
-// Configure logging
-const ORGANIZATION_ID = process.env.ZOHO_ORGANIZATION_ID || "892673756";
+const app = express();
+
+// Middleware
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Configuration
 const API_DOMAIN = getApiDomain();
 
-class ServerlessHandler {
-    /** Simple HTTP handler for serverless environment. */
-    
-    constructor() {
-        this.headers = {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type'
-        };
+// Serve the main HTML page
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'templates', 'index.html'));
+});
+
+// Fetch invoices from Zoho Books
+app.get('/api/invoices', async (req, res) => {
+    try {
+        const headers = await getHeaders("892673756");
+        const url = `${API_DOMAIN}/books/v3/invoices`;
+        const response = await axios.get(url, { headers });
+        const data = response.data;
+        
+        // Simplify response for frontend
+        const invoices = data.invoices || [];
+        res.json({
+            'invoices': invoices,
+            'count': invoices.length
+        });
+    } catch (error) {
+        console.error('Error fetching invoices:', error.message);
+        res.status(500).json({'error': error.message});
     }
-    
-    setCorsHeaders(res) {
-        for (const [key, value] of Object.entries(this.headers)) {
-            res.setHeader(key, value);
-        }
+});
+
+// Fetch items from Zoho Books
+app.get('/api/items', async (req, res) => {
+    try {
+        const headers = await getHeaders("892673756");
+        const url = `${API_DOMAIN}/books/v3/items`;
+        const response = await axios.get(url, { headers });
+        const data = response.data;
+        const items = data.items || [];
+        res.json({
+            'items': items,
+            'count': items.length
+        });
+    } catch (error) {
+        console.error('Error fetching items:', error.message);
+        res.status(500).json({'error': error.message});
     }
-    
-    async handleRequest(req, res) {
-        const parsedUrl = url.parse(req.url, true);
-        const path = parsedUrl.pathname;
+});
+
+// Fetch contacts from Zoho Books
+app.get('/api/contacts', async (req, res) => {
+    try {
+        const headers = await getHeaders("892673756");
+        const url = `${API_DOMAIN}/books/v3/contacts`;
+        const response = await axios.get(url, { headers });
+        const data = response.data;
+        const contacts = data.contacts || [];
+        res.json({
+            'contacts': contacts,
+            'count': contacts.length
+        });
+    } catch (error) {
+        console.error('Error fetching contacts:', error.message);
+        res.status(500).json({'error': error.message});
+    }
+});
+
+// Create a new invoice in Zoho Books
+app.post('/api/invoices', async (req, res) => {
+    try {
+        const invoiceData = req.body;
         
-        // Set CORS headers for all responses
-        this.setCorsHeaders(res);
-        
-        // Handle OPTIONS requests for CORS
-        if (req.method === 'OPTIONS') {
-            res.writeHead(200);
-            res.end();
-            return;
-        }
-        
-        try {
-            if (req.method === 'GET' && path === '/api/invoices') {
-                await this.handleGetInvoices(req, res);
-            } else if (req.method === 'GET' && path === '/api/items') {
-                await this.handleGetItems(req, res);
-            } else if (req.method === 'GET' && path === '/health') {
-                await this.handleHealth(req, res);
-            } else if (req.method === 'POST' && path === '/api/invoices') {
-                await this.handlePostInvoices(req, res);
-            } else {
-                res.writeHead(404, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({'error': 'Not found'}));
+        // Validate required fields
+        const required = ['customer_id', 'date', 'due_date', 'currency_code', 'line_items'];
+        for (const field of required) {
+            if (!invoiceData[field]) {
+                return res.status(400).json({'error': `Missing field: ${field}`});
             }
-        } catch (error) {
-            console.error('Request handling error:', error);
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({'error': 'Internal server error'}));
         }
-    }
-    
-    async handleHealth(req, res) {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({'status': 'ok'}));
-    }
-    
-    async handleGetInvoices(req, res) {
-        try {
-            const headers = await getHeaders();
-            const axios = require('axios');
-            const response = await axios.get(`${API_DOMAIN}/books/v3/invoices`, { headers });
-            const data = response.data;
-            const invoices = data.invoices || [];
-            
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({'invoices': invoices, 'count': invoices.length}));
-        } catch (error) {
-            console.error(`Error fetching invoices: ${error.message}`);
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({'error': error.message}));
+        
+        // Prepare payload for Zoho
+        const payload = {
+            'customer_id': invoiceData.customer_id,
+            'date': invoiceData.date,
+            'due_date': invoiceData.due_date,
+            'currency_code': invoiceData.currency_code,
+            'line_items': invoiceData.line_items
+        };
+        
+        if (invoiceData.notes) {
+            payload.notes = invoiceData.notes;
         }
-    }
-    
-    async handleGetItems(req, res) {
-        try {
-            const headers = await getHeaders();
-            const axios = require('axios');
-            const response = await axios.get(`${API_DOMAIN}/books/v3/items`, { headers });
-            const data = response.data;
-            const items = data.items || [];
-            
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({'items': items, 'count': items.length}));
-        } catch (error) {
-            console.error(`Error fetching items: ${error.message}`);
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({'error': error.message}));
+        
+        const headers = await getHeaders("892673756");
+        const url = `${API_DOMAIN}/books/v3/invoices`;
+        const response = await axios.post(url, payload, { headers });
+        const result = response.data;
+        
+        // Extract relevant info for frontend
+        const invoice = result.invoice || {};
+        res.json({
+            'invoice_id': invoice.invoice_id,
+            'invoice_number': invoice.invoice_number,
+            'message': 'Invoice created successfully'
+        });
+    } catch (error) {
+        console.error('Error creating invoice:', error.message);
+        
+        // Try to get error details from response
+        let errorDetail = error.message;
+        if (error.response && error.response.data) {
+            errorDetail = error.response.data;
         }
+        
+        res.status(500).json({
+            'error': 'Failed to create invoice', 
+            'details': errorDetail
+        });
     }
-    
-    async handlePostInvoices(req, res) {
-        try {
-            let body = '';
-            req.on('data', chunk => {
-                body += chunk.toString();
-            });
-            
-            req.on('end', async () => {
-                try {
-                    const invoiceData = JSON.parse(body || '{}');
-                    
-                    // Validate required fields
-                    const required = ['customer_id', 'date', 'due_date', 'currency_code', 'line_items'];
-                    for (const field of required) {
-                        if (!invoiceData[field]) {
-                            res.writeHead(400, { 'Content-Type': 'application/json' });
-                            res.end(JSON.stringify({'error': `Missing field: ${field}`}));
-                            return;
-                        }
-                    }
-                    
-                    const payload = {
-                        'customer_id': invoiceData.customer_id,
-                        'date': invoiceData.date,
-                        'due_date': invoiceData.due_date,
-                        'currency_code': invoiceData.currency_code,
-                        'line_items': invoiceData.line_items
-                    };
-                    
-                    if (invoiceData.notes) {
-                        payload.notes = invoiceData.notes;
-                    }
-                    
-                    const headers = await getHeaders();
-                    const axios = require('axios');
-                    const response = await axios.post(`${API_DOMAIN}/books/v3/invoices`, payload, { headers });
-                    const result = response.data;
-                    const invoice = result.invoice || {};
-                    
-                    res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({
-                        'invoice_id': invoice.invoice_id,
-                        'invoice_number': invoice.invoice_number,
-                        'message': 'Invoice created successfully'
-                    }));
-                } catch (error) {
-                    console.error(`Error in POST invoice: ${error.message}`);
-                    let errorDetail = error.message;
-                    if (error.response && error.response.data) {
-                        errorDetail = error.response.data;
-                    }
-                    
-                    res.writeHead(500, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({'error': 'Failed to create invoice', 'details': errorDetail}));
-                }
-            });
-        } catch (error) {
-            console.error(`Error handling POST invoice: ${error.message}`);
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({'error': 'Failed to process request'}));
-        }
-    }
-}
+});
 
-// Create serverless handler instance
-const handler = new ServerlessHandler();
-
-// Export for serverless platforms
-module.exports = async (req, res) => {
-    await handler.handleRequest(req, res);
-};
-
-// For local testing
-if (require.main === module) {
-    const port = process.env.PORT || 8080;
-    const server = http.createServer(async (req, res) => {
-        await handler.handleRequest(req, res);
-    });
-    
-    server.listen(port, '0.0.0.0', () => {
-        console.log(`Server running on port ${port}`);
-    });
-}
+// Export for Vercel serverless function
+module.exports = app;
