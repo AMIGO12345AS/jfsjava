@@ -1,5 +1,5 @@
 {
-  "name": "zohobooksmanager",
+  "name": "zohobooks",
   "version": "1.0.0",
   "description": "Zoho Books API Manager - JavaScript/Node.js version",
   "main": "app.js",
