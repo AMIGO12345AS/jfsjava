@@ -1,21 +1,29 @@
-# Serverless Proxy Deployment Guide
+# Serverless Proxy Deployment Guide - JavaScript/Node.js Version
 
-This guide explains how to deploy the Zoho Books API proxy as a serverless function on various platforms.
+This guide explains how to deploy the Zoho Books API proxy as a serverless function on various platforms using JavaScript/Node.js.
 
 ## Prerequisites
 
 - Zoho Books account with API access
 - Client ID, Client Secret, and Refresh Token
 - Git repository with the code
+- Node.js 14+ installed locally
 
 ## Environment Variables
 
 Set these environment variables on your deployment platform:
 
 - `ZOHO_CLIENT_ID`: Your Zoho client ID
-- `ZOHO_CLIENT_SECRET`: Your Zoho client secret  
+- `ZOHO_CLIENT_SECRET`: Your Zoho client secret
 - `ZOHO_REFRESH_TOKEN`: Your Zoho refresh token
 - `ZOHO_ORGANIZATION_ID`: Your Zoho organization ID (default: 892673756)
+
+## Installation
+
+1. **Install dependencies**:
+   ```bash
+   npm install
+   ```
 
 ## Deployment Options
 
@@ -32,25 +40,20 @@ Set these environment variables on your deployment platform:
      "version": 2,
      "builds": [
        {
-         "src": "api.py",
-         "use": "@vercel/python"
+         "src": "api.js",
+         "use": "@vercel/node"
        }
      ],
      "routes": [
        {
          "src": "/(.*)",
-         "dest": "api.py"
+         "dest": "api.js"
        }
      ]
    }
    ```
 
-3. **Create `requirements.txt`**:
-   ```
-   requests==2.32.5
-   ```
-
-4. **Deploy**:
+3. **Deploy**:
    ```bash
    vercel --prod
    ```
@@ -60,7 +63,7 @@ Set these environment variables on your deployment platform:
 1. **Create `netlify.toml`**:
    ```toml
    [build]
-     command = "echo 'No build needed'"
+     command = "npm install"
      publish = "."
 
    [[redirects]]
@@ -69,10 +72,10 @@ Set these environment variables on your deployment platform:
      status = 200
 
    [build.environment]
-     PYTHON_VERSION = "3.9"
+     NODE_VERSION = "16"
    ```
 
-2. **Create `netlify/functions/api.py`** (move the file to this location)
+2. **Create `netlify/functions/api.js`** (move the file to this location)
 
 3. **Deploy** via Netlify dashboard or CLI
 
@@ -89,7 +92,7 @@ Set these environment variables on your deployment platform:
 
    provider:
      name: aws
-     runtime: python3.9
+     runtime: nodejs16.x
      region: us-east-1
      environment:
        ZOHO_CLIENT_ID: ${env:ZOHO_CLIENT_ID}
@@ -143,11 +146,17 @@ fetch(`${API_BASE}/api/invoices`, {
 
 2. **Run locally**:
    ```bash
-   python api.py
+   # For Express server
+   npm start
+   
+   # For serverless function
+   npm run serverless
    ```
 
 3. **Test endpoints**:
    ```bash
+   curl http://localhost:5000/api/invoices
+   # or
    curl http://localhost:8080/api/invoices
    ```
 
@@ -166,22 +175,23 @@ fetch(`${API_BASE}/api/invoices`, {
 1. **CORS errors**: Ensure your proxy includes CORS headers
 2. **Token refresh failures**: Verify your refresh token is valid
 3. **Environment variables**: Double-check all required variables are set
-4. **Dependencies**: Ensure `requests` library is available
+4. **Dependencies**: Ensure `axios` library is available
 
 ### Testing Token Refresh
 
 Test token refresh independently:
-```python
-python -c "
-import requests
-data = {
-    'refresh_token': 'your-refresh-token',
-    'client_id': 'your-client-id', 
-    'client_secret': 'your-client-secret',
-    'grant_type': 'refresh_token'
-}
-r = requests.post('https://accounts.zoho.com/oauth/v2/token', data=data)
-print(r.status_code, r.text)
+```javascript
+node -e "
+const axios = require('axios');
+const data = new URLSearchParams();
+data.append('refresh_token', 'your-refresh-token');
+data.append('client_id', 'your-client-id');
+data.append('client_secret', 'your-client-secret');
+data.append('grant_type', 'refresh_token');
+
+axios.post('https://accounts.zoho.com/oauth/v2/token', data)
+  .then(r => console.log(r.status, r.data))
+  .catch(e => console.error(e.message));
 "
 ```
 
@@ -189,11 +199,13 @@ print(r.status_code, r.text)
 
 ```
 project/
-├── api.py                    # Main serverless function
-├── zoho_token_manager_serverless.py  # Token management
-├── requirements.txt          # Python dependencies
+├── api.js                    # Main serverless function
+├── app.js                    # Express server (alternative)
+├── zoho_token_manager_serverless.js  # Token management
+├── zoho_token_manager.js     # Alternative token manager
+├── package.json              # Node.js dependencies
 ├── vercel.json              # Vercel configuration (optional)
-├── netlify.toml             # Netlify configuration (optional) 
+├── netlify.toml             # Netlify configuration (optional)
 └── serverless.yml           # AWS Lambda configuration (optional)
 ```
 
